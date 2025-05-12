@@ -3,14 +3,12 @@
     "name": "Smart Response",
     "version": "1.0",
     "description": "Créer un template de mail, remplir les variables et envoyer.",
-    
     "permissions": ["storage"],
     "host_permissions": ["https://mail.google.com/*"],
-  
     "content_scripts": [
       {
         "matches": ["https://mail.google.com/*"],
-        "js": ["app.js", "btn.js"]
+        "js": ["dist/content.js"]   
       }
     ]
   }
