@@ -1,12 +1,9 @@
 /**
  * Gmail template selection modal script
- * Persistance prioritaire via **chrome.storage.sync** ; fallback automatique sur
- * `chrome.storage.local`, puis sur `localStorage` si l'API Chrome n'est pas dispo
- * (ex. exécution Tampermonkey ou page sans extension).
+ * Persistance via chrome.storage (sync > local > localStorage)
+ * – Ajout d'une **croix (×)** pour supprimer rapidement un template dans la liste.
  *
- * -> Plus d'erreur « Cannot read properties of undefined (reading 'sync') »
- *
- * API console :
+ * API console :
  *   saveMyTemplate(name, html)
  *   deleteMyTemplate(name)
  *   listMyTemplates()
@@ -14,25 +11,18 @@
 
 (function () {
     /* -------------------------------------------------- */
-    /* Sélection dynamique de la couche de stockage       */
+    /* Couche de stockage (sync → local → localStorage)   */
     /* -------------------------------------------------- */
-    const STORE_KEY = "gmailUserTemplates"; // { [name]: html }
-  
-    /**
-     * Retourne un objet { get(key, cb), set(obj, cb) } abstraitant chrome/localStorage.
-     */
+    const STORE_KEY = "gmailUserTemplates";
     function getStorageLayer() {
       if (typeof chrome !== "undefined" && chrome.storage) {
-        if (chrome.storage.sync) return chrome.storage.sync;      // priorité sync
-        if (chrome.storage.local) return chrome.storage.local;    // fallback local
+        if (chrome.storage.sync) return chrome.storage.sync;
+        if (chrome.storage.local) return chrome.storage.local;
       }
-      // Fallback : interface minimale sur localStorage (sync)
       return {
         get(keys, cb) {
           const k = Array.isArray(keys) ? keys[0] : keys;
-          const out = {};
-          out[k] = JSON.parse(localStorage.getItem(k) || "null");
-          cb(out);
+          cb({ [k]: JSON.parse(localStorage.getItem(k) || "null") });
         },
         set(obj, cb) {
           const k = Object.keys(obj)[0];
@@ -60,17 +50,14 @@
     storage.get([STORE_KEY], (res) => {
       userTemplates = res[STORE_KEY] || {};
     });
-  
-    const saveUserTemplates = (map, cb) => {
-      storage.set({ [STORE_KEY]: map }, cb);
-    };
+    const saveUserTemplates = (map, cb) => storage.set({ [STORE_KEY]: map }, cb);
   
     const getAllTemplates = () => ({ ...DEFAULT_TEMPLATES, ...userTemplates });
     const listMyTemplates = () => Object.keys(getAllTemplates()).sort();
     const getMyTemplate = (name) => getAllTemplates()[name] || null;
   
     /* -------------------------------------------------- */
-    /* Opérations CRUD exposées                           */
+    /* CRUD exposées                                      */
     /* -------------------------------------------------- */
     function saveMyTemplate(name, html) {
       if (!name) return;
@@ -101,40 +88,58 @@
     /* -------------------------------------------------- */
     function injectStyles() {
       if (document.getElementById("templateModalStyles")) return;
-      const s = document.createElement("style");
-      s.id = "templateModalStyles";
-      s.textContent = `
+      const css = `
   #templateSelectionModal .tsm-backdrop{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:9999}
   #templateSelectionModal .tsm-window{background:#fff;width:90%;max-width:420px;padding:24px 20px;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.2);font-family:Arial,Helvetica,sans-serif}
   #templateSelectionModal h2{margin:0 0 16px;font-size:20px}
   #templateSelectionModal .tsm-list{list-style:none;padding:0;margin:0 0 12px;max-height:220px;overflow-y:auto}
-  #templateSelectionModal .tsm-item{padding:10px 12px;border-radius:4px;cursor:pointer;user-select:none}
+  #templateSelectionModal .tsm-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:4px;cursor:pointer;user-select:none}
   #templateSelectionModal .tsm-item:hover{background:#f0f0f0}
+  #templateSelectionModal .tsm-delete{margin-left:auto;font-weight:bold;cursor:pointer;color:#e53935}
+  #templateSelectionModal .tsm-delete:hover{color:#b71c1c}
   #templateSelectionModal .tsm-close,#templateSelectionModal .tsm-save{padding:8px 16px;border:none;border-radius:4px;cursor:pointer;color:#fff}
   #templateSelectionModal .tsm-close{background:#1976d2}
   #templateSelectionModal .tsm-save{background:#388e3c;margin-right:8px}`;
-      document.head.appendChild(s);
+      const style = Object.assign(document.createElement("style"), { id: "templateModalStyles", textContent: css });
+      document.head.appendChild(style);
     }
   
     /* -------------------------------------------------- */
-    /* Modale                                             */
+    /* Modale & liste                                     */
     /* -------------------------------------------------- */
     let modal;
-    const renderTemplateList = () => {
+    function renderTemplateList() {
       const listEl = modal?.querySelector("#templateList");
       if (!listEl) return;
       listEl.innerHTML = "";
       listMyTemplates().forEach((name) => {
         const li = document.createElement("li");
-        li.textContent = name;
         li.className = "tsm-item";
+  
+        const label = document.createElement("span");
+        label.textContent = name;
+        label.style.flex = "1";
+  
+        const del = document.createElement("span");
+        del.className = "tsm-delete";
+        del.textContent = "×";
+        del.title = "Supprimer ce template";
+        del.addEventListener("click", (e) => {
+          e.stopPropagation(); // n'active pas la sélection
+          if (confirm(`Supprimer le template « ${name} » ?`)) {
+            deleteMyTemplate(name);
+            renderTemplateList();
+          }
+        });
+  
+        li.append(label, del);
         li.addEventListener("click", () => {
           templateSelect(name);
           modal.style.display = "none";
         });
         listEl.appendChild(li);
       });
-    };
+    }
   
     function generateModal() {
       injectStyles();
