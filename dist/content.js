@@ -1,6 +1,15 @@
 (() => {
+  var __defProp = Object.defineProperty;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __esm = (fn, res) => function __init() {
+    return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+  };
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+
   // src/storage.js
-  var STORE_KEY = "gmailUserTemplates";
   function getStorageLayer() {
     if (typeof chrome !== "undefined" && chrome.storage) {
       if (chrome.storage.sync) return chrome.storage.sync;
@@ -18,25 +27,28 @@
       }
     };
   }
-  var storage = getStorageLayer();
+  var STORE_KEY, storage;
+  var init_storage = __esm({
+    "src/storage.js"() {
+      STORE_KEY = "gmailUserTemplates";
+      storage = getStorageLayer();
+    }
+  });
 
   // src/defaults.js
-  var DEFAULT_TEMPLATES = {
-    "R\xE9ponse simple": `<p>Bonjour,</p><p>Merci pour votre message $&nom. Je reviens vers vous rapidement.</p><p>Cordialement,<br>$&signature</p>`,
-    "Demande d'informations": `<p>Bonjour $&contact,</p><p>Pourriez-vous m'envoyer les informations compl\xE9mentaires concernant&nbsp;\u2026</p><p>Merci d'avance&nbsp;!</p>`,
-    Relance: `<p>Bonjour,</p><p>Je me permets de revenir vers vous concernant ma pr\xE9c\xE9dente demande du $&date.</p>`,
-    Remerciement: `<p>Bonjour,</p><p>Un grand merci pour votre aide $&nom&nbsp;!</p>`
-  };
+  var DEFAULT_TEMPLATES;
+  var init_defaults = __esm({
+    "src/defaults.js"() {
+      DEFAULT_TEMPLATES = {
+        "R\xE9ponse simple": `<p>Bonjour,</p><p>Merci pour votre message $&nom. Je reviens vers vous rapidement.</p><p>Cordialement,<br>$&signature</p>`,
+        "Demande d'informations": `<p>Bonjour $&contact,</p><p>Pourriez-vous m'envoyer les informations compl\xE9mentaires concernant&nbsp;\u2026</p><p>Merci d'avance&nbsp;!</p>`,
+        Relance: `<p>Bonjour,</p><p>Je me permets de revenir vers vous concernant ma pr\xE9c\xE9dente demande du $&date.</p>`,
+        Remerciement: `<p>Bonjour,</p><p>Un grand merci pour votre aide $&nom&nbsp;!</p>`
+      };
+    }
+  });
 
   // src/templates.js
-  var userTemplates = {};
-  storage.get([STORE_KEY], (res) => {
-    userTemplates = res[STORE_KEY] || {};
-  });
-  var saveUserTemplates = (map, cb) => storage.set({ [STORE_KEY]: map }, cb);
-  var getAllTemplates = () => ({ ...DEFAULT_TEMPLATES, ...userTemplates });
-  var listMyTemplates = () => Object.keys(getAllTemplates()).sort();
-  var getMyTemplate = (name) => getAllTemplates()[name] || null;
   function saveMyTemplate(name, html) {
     if (!name) return;
     userTemplates[name] = html;
@@ -67,9 +79,28 @@
     }
     return filled;
   }
+  var userTemplates, saveUserTemplates, getAllTemplates, listMyTemplates, getMyTemplate;
+  var init_templates = __esm({
+    "src/templates.js"() {
+      init_storage();
+      init_defaults();
+      userTemplates = {};
+      storage.get([STORE_KEY], (res) => {
+        userTemplates = res[STORE_KEY] || {};
+      });
+      saveUserTemplates = (map, cb) => storage.set({ [STORE_KEY]: map }, cb);
+      getAllTemplates = () => ({ ...DEFAULT_TEMPLATES, ...userTemplates });
+      listMyTemplates = () => Object.keys(getAllTemplates()).sort();
+      getMyTemplate = (name) => getAllTemplates()[name] || null;
+    }
+  });
 
   // src/modal.js
-  var modal;
+  var modal_exports = {};
+  __export(modal_exports, {
+    generateModal: () => generateModal,
+    injectStyles: () => injectStyles
+  });
   function injectStyles() {
     if (document.getElementById("templateModalStyles")) return;
     const css = `
@@ -154,6 +185,13 @@
     renderTemplateList();
     modal.style.display = "block";
   }
+  var modal;
+  var init_modal = __esm({
+    "src/modal.js"() {
+      init_templates();
+      init_gmail();
+    }
+  });
 
   // src/gmail.js
   function templateSelect(name) {
@@ -173,12 +211,31 @@
     const btn = document.createElement("button");
     btn.id = "templateSelectionButton";
     btn.textContent = "Liste templates";
+    btn.className = sendBtn.className;
+    const { height, width: sendWidth } = sendBtn.getBoundingClientRect();
+    btn.style.height = `${height}px`;
+    btn.style.lineHeight = `${height}px`;
     btn.style.marginLeft = "8px";
-    btn.addEventListener("click", generateModal);
+    btn.style.minWidth = `${sendWidth * 1.4}px`;
+    btn.addEventListener("click", async () => {
+      const { generateModal: generateModal2 } = await Promise.resolve().then(() => (init_modal(), modal_exports));
+      generateModal2();
+    });
     sendBtn.parentNode.insertBefore(btn, sendBtn.nextSibling);
   }
+  var init_gmail = __esm({
+    "src/gmail.js"() {
+      init_templates();
+    }
+  });
+
+  // src/index.js
+  init_storage();
+  init_defaults();
+  init_templates();
 
   // src/observer.js
+  init_gmail();
   function startObserver() {
     new MutationObserver(injectGmailButton).observe(document.body, { childList: true, subtree: true });
     window.addEventListener("load", injectGmailButton);
